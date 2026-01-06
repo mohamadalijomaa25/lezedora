@@ -3,7 +3,7 @@ const dotenv = require("dotenv");
 const morgan = require("morgan");
 const cors = require("cors");
 
-dotenv.config(); // load .env first
+dotenv.config();
 
 const pool = require("./config/db");
 
@@ -18,20 +18,29 @@ const { notFound, errorHandler } = require("./middleware/error.middleware");
 
 const app = express();
 
-// ✅ CORS (allow localhost + your deployed frontend)
-const allowedOrigins = [
+/**
+ * CORS
+ * - Allows localhost for dev
+ * - Allows your Vercel production domain
+ * - Also allows Vercel preview domains (*.vercel.app)
+ */
+const allowedOrigins = new Set([
   "http://localhost:3000",
   "https://lezedora.vercel.app",
-  // if you have a different Vercel domain later (preview/custom), add it here
-];
+]);
 
 app.use(
   cors({
     origin: (origin, cb) => {
-      // allow non-browser requests (Render health checks, curl, Postman)
+      // allow non-browser tools (Postman, curl) with no origin
       if (!origin) return cb(null, true);
 
-      if (allowedOrigins.includes(origin)) return cb(null, true);
+      // allow exact matches
+      if (allowedOrigins.has(origin)) return cb(null, true);
+
+      // allow Vercel preview deployments
+      if (origin.endsWith(".vercel.app")) return cb(null, true);
+
       return cb(new Error(`CORS blocked for origin: ${origin}`));
     },
     credentials: true,
@@ -41,12 +50,7 @@ app.use(
 app.use(express.json());
 app.use(morgan("dev"));
 
-// ✅ Root route (so Render hitting "/" doesn't show Route not found)
-app.get("/", (req, res) => {
-  res.json({ ok: true, service: "Lezedora API" });
-});
-
-// ✅ Health check (keep your existing one)
+// Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", app: "lezedora-server" });
 });
@@ -72,7 +76,6 @@ app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-// ✅ Bind 0.0.0.0 for Render
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Lezedora API running on http://localhost:${PORT}`);
+app.listen(PORT, () => {
+  console.log(`✅ Lezedora API running on port ${PORT}`);
 });
